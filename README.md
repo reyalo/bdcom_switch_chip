@@ -103,3 +103,88 @@ Port VLAN Config Table	            Defines whether the port is in translation/Qi
 Ingress VLAN Lookup Table	        Matches incoming VLANs to perform translation.
 Egress VLAN Edit Table	            Rewrites VLAN ID before frame is transmitted.
 2.6.5
+
+
+
+2.7.1
+1. Describe the role and principle of aggregation
+Role:
+
+Link Aggregation (LAG) groups multiple physical ports into one logical port.
+
+Provides:
+
+Bandwidth increase
+
+Redundancy
+
+Load balancing
+
+Principle:
+
+Each ingress or egress flow is hashed.
+
+The hash result selects one member port in the group.
+
+2.7.2
+2.7.3
+2.7.4
+No, not exactly 1:1:1.
+
+Reason:
+
+Hash modulo 3 distributes flows as evenly as possible, but 1000 ÷ 3 = 333.33
+
+So the distribution will be something like:
+
+Port 1: 334 flows
+
+Port 2: 333 flows
+
+Port 3: 333 flows
+
+Hash collisions and modulo remainder cause a small imbalance.
+
+
+2.7.5
+Yes, exactly.
+
+Reason:
+
+1000 ÷ 4 = 250
+
+With a good hash algorithm, the flows can be evenly divided:
+
+Port 1: 250
+
+Port 2: 250
+
+Port 3: 250
+
+Port 4: 250
+
+Assumes that:
+
+Hash function is uniform and has enough entropy.
+
+All ports are up and active.
+
+
+2.7.6
+Feature	Static Aggregation	Dynamic Aggregation
+Protocol	No protocol involved	Uses LACP (Link Aggregation Control Protocol - IEEE 802.3ad)
+Configuration	Manually configured	Negotiated dynamically between devices
+Link negotiation	Not aware of peer configuration	Ensures consistency between both ends
+Fault detection	Limited	Better failure detection and auto-recovery
+Use case	Simpler setups, fixed links	More robust, for dynamic environments
+
+
+
+2.7 Port Link Aggregation
+1. Describe the role and principle of aggregation;
+2. Describe the aggregation group member table entries of the corresponding chip of the aggregation group, how the flow is hashed and how to decide which physical port to forward from;
+3. In L2_entry, which bit indicates that the port is an aggregation port?
+4. If the aggregation group has 3 physical port members, play 1000 evenly distributed hash flows, can the flow of each physical port be 1:1:1;
+5. If the aggregation group has 4 physical port members, play 1000 evenly distributed hash flows, can the flow of each physical port be 1:1:1:1;
+6. What is the difference between static aggregation and dynamic aggregation?
+7. Configure a static aggregation group, describe how to view the aggregation group and HASH method under the shell?
