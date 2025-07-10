@@ -47,7 +47,7 @@ Topics:
 
 
 
-/
+#####################################################################################
 2.5.1
 Principle and Function of STP
 The Spanning Tree Protocol (STP) is designed to prevent loops in Layer 2 networks (Ethernet). In redundant switch topologies, loops can cause broadcast storms, multiple frame copies, and MAC table instability. STP dynamically builds a loop-free tree by selectively blocking certain ports.
@@ -632,3 +632,267 @@ trunk member ports.
 Bit value: 
 0b0: disable stand-alone mode 
 0b1: enable stand-alone mode
+
+
+
+3.4.3.1 Ingress Process
+System provides 1024 Source Port Mapping Table (Ingress Trunk Table) entries, which is used to 
+configure different device and port belongs to a trunk or not. The format of the entry is as follows. 
+
+Table 3-59 Source Port Mapping Table Entry 
+Fields                  Description  
+TRK_ID_VALID            Specify if TRK_ID is valid or not. If TRK_ID is valid, the port is a  trunk member port of the trunk. 
+TRK_ID                  ID of link aggregation group of source port.
+
+
+While a packet is received from normal or stacking port, system will use KEY <DEV+PORT> to decide 
+whether if it is from trunk and the corresponding TRK_ID. The KEY <DEV> represents the stacking 
+device ID (more detailed information, please refer to stacking develop guide). The entry index would 
+be DEV*64 + PORT. The result TRK_ID can be used to learn into L2 table as the source port and so on. 
+For example, if a packet is received from local port 3, and the DEV configuration of the switch is 0, it 
+would lookup Source Port Mapping Table of index (0*64 + 3) = 3 to decide if it is a trunk member port 
+and the trunk ID
+
+
+
+Table 3-60 TRK_ID_CTRL Register 
+Bits        Field           Description 
+7:7         TRK_ID_VALID    Specify if TRK_ID is valid or not. If TRK_ID is valid, the TRK_ID decides the trunk ID and TRK_PPM decides the local member ports. 
+6:0         TRK_ID          ID of link aggregation group of source port. 
+
+
+Table 3-61 TRK_MBR_CTRL Register 
+Bits        Field       Description 
+55:0        TRK_PPM     Local member portmask of link aggregation group. Bit value: 0b0: individual port, 0b1: individual port
+
+
+3.4.3.2 Egress Process 
+When packets are going out through one trunk, packets will do load balancing within member ports. 
+The final outgoing port is decided by the trunk member port set, load sharing algorithm selected, 
+traffic separation and local first if set. 
+ 
+Egress Member Port 
+System provides Egress Trunk Table to configure egress member port. Per Egress Trunk Table entry has 
+8 (TRK_DEV, TRK_PORT) configurations that denotes trunk TX candidate ports. At most 8 ports can be 
+configured as member port.  
+The Egress Trunk Table has 128 entries in total. Per Entry format is as follows.
+
+
+Table 3-62 Egress Trunk Table Entry
+Fields          Description 
+NUM_TX_CANDI    Number of valid TX candidate ports of this trunk group. 
+TRK_DEV7        Device ID 7 
+TRK_PORT7       Trunk port 7 
+TRK_DEV6        Device ID 6 
+TRK_PORT6       Trunk port 6 
+TRK_DEV5        Device ID 5 
+TRK_PORT5       Trunk port 5 
+TRK_DEV4        Device ID 4 
+TRK_PORT4       Trunk port 4 
+TRK_ DEV3       Device ID 3 
+TRK_PORT3       Trunk port 3 
+TRK_ DEV2       Device ID 2 
+TRK_PORT2       Trunk port 2 
+TRK_DEV1        Device ID 1 
+TRK_PORT1       Trunk port 1 
+TRK_DEV0        Device ID 0 
+TRK_PORT0       Trunk port 0 
+L2_HASH_MSK_IDX Index of hash parameters mask of a trunk of L2 packets. (index to L2_HASH_MASK) 
+IP4_HASH_MSK_IDX Index of hash parameters mask of a trunk of IPv4 packets. (index to L3_HASH_MASK) 
+IP6_HASH_MSK_IDX Index of hash parameters mask of a trunk of IPv6 packets. (index to L3_HASH_MASK)
+
+
+able 3-71 RMA_PORT_BPDU_CTRL 
+Bits, Field, Description 
+2:0, ACT, BPDU (01-80-C2-00-00-00) Configuration. 0x0: Forward 0x1: Drop 0x2: Trap to local CPU 0x3: Trap to master CPU 0x4: Flood(limited by RMA_BPDU_FLD_PMSK) 0x5 0x7: Reserved Note: When it is set to Trap, BPDU packet should be able to bypass VLAN.
+
+
+
+
+
+3.5.3 User Defined RMA 
+The device supports 4 user defined RMA settings. Using them, you can configure specific MAC address 
+as RMA. The fields of each user defined RMA setting are shown as Table 3-78. The whole 48 bits can be 
+configured in user defined RMA. 
+
+Table 3-78 RMA_USR_DEF_CTRL Register 
+Bits Field Description 
+143:128, ADDR_MAX_HI, The address [47:32] of maximum boundary of user-defined RMA. 
+127:96, ADDR_MAX_LO, The address [31:0] of maximum boundary of user-defined RMA. 
+79:64, ADDR_MIN_HI, The address [47:32] of minimum boundary of user-defined RMA. 
+63:32, ADDR_MIN_LO, The address [31:0] of minimum boundary of user-defined RMA. 
+24:9, ETHER_TYPE, Ether type value 
+8 BYPASS_VLAN User-defined RMA bypass VLAN drop ("VLAN ingress filter", "VLAN error", "VLAN accept frame type" and "CFI = 1"). This works only if EN is set as enabled. 0b0: Follow VLAN decision 0b1: Bypass (works only if the ACT field is trapping to CPU or forward) 
+7, LRN, 0b0: Not learn the SAMC 0b1: Learn the SMAC 
+6, BYPASS_STP, User-defined RMA bypass "Blocking" and "Learning" port state of spanning tree. This works only if EN is set as enabled. 0b0: Drop by STP 0b1: Bypass (works only if the ACT field is trapping to CPU)
+5:3, ACT, User-defined RMA action. 0x0: Forward 0x1: Drop 0x2: Trap to local CPU 0x3: Trap to master CPU 0x4: Flood (limited by RMA_USR_DEF_FLD_PMSK) 0x5 0x7: Reserved 
+2:1, TYPE, Compare field. 0b00: Compare ADDR only 0b01: Compare EtherType only 0b10: Both ADDR and EtherType 0b11: Reserved 
+0, EN, Enable this User-defined RMA rule. 0b0: Disable 0b1: Enable 
+
+
+Vlan MacAddress Type Ports
+1, 0100.0001.0001, STATIC, g0/1 g0/2
+10, 0100.0001.0001, STATIC, g0/1 g0/2
+
+
+Table 3-2 L2 Unicast Table Entry 
+Fiels, Description 
+VALID, This entry is valid or not: 0:invalid 1:valid 
+
+FMT, Indicates entry format 0b00: L2 or port extension CB entry 0b01: OpenFlow 
+
+ENTRY_TYPE, Entry type 0b0: L2 unicast/multicast entry 0b1: PE forwarding entry 
+
+FID_RVID, FID/RVID(known as forwarding VID) 
+MAC, MAC address 
+L2_TNL, L2 tunnel indicator 
+NEXT_HOP, Next Hop (flag indicating can be used for routing) 
+IS_TRK, trunk or physical port 0b0: physical port 0b1: trunk 
+SPA if IS_TRK=0 SPA<9:6> is unit, SPA<5:0> is physical port if IS_TRK=1, SPA<5:0> is trunk id(0-63) 
+AGE, Aging Time Range from 0 to 7 
+SA_BLK, Source MAC address blocking 
+DA_BLK, Destination MAC address blocking 
+STATIC, Static entry 
+SUSPEND, Suspend (this entry waits to be removed/modified) 
+TAGSTS, VLAN tag status (used by VLAN aggregation) 
+AGG_PRI, Aggregating priority (used by VLAN aggregation) 
+AGG_VID, Aggregating VLAN ID (used by VLAN aggregation)
+
+
+Should we complete RTL9310 developer guide in the next week? But if we study deeply then more time spended for each topic.
+
+Should we aim to complete the RTL9310 Developer Guide by next week? Based on our previous experience, if we studying each topic in depth maybe we could not complete in time.
+
+
+###################################################################################
+
+4 L3 Feature
+4.1.1 Routing overview
+4.1 Routing  
+4.1.1
+Routing Overview 
+L3 is the Network Layer in OSI (Open Systems Interconnection) model. The network switching device 
+routes and forwards packets between different networks (VLANs) as a router. It’s a common approach 
+to make hosts in different networks able to communicate with each other. 
+Routing is the process of forwarding packets hop by hop on L3. It primarily includes finding an outgoing 
+interface and a next hop, modifying the packets’ SMAC, DMAC, VID (if provided), TTL and L3 header 
+checksum (for IPv4) and forwarding. 
+The device supports IPv4/IPv6 unicast and multicast routing. The system provides global options for 
+each type of packets to determine whether to route or discard those L3 packets. 
+Figure 4-1 Classic Forwarding Model of L2 Bridging and L3 Routing 
+
+
+.1.2
+ Routing Overview 
+L3 is the Network Layer in OSI (Open Systems Interconnection) model. The network switching device 
+routes and forwards packets between different networks (VLANs) as a router. It’s a common approach 
+to make hosts in different networks able to communicate with each other. 
+Routing is the process of forwarding packets hop by hop on L3. It primarily includes finding an outgoing 
+interface and a next hop, modifying the packets’ SMAC, DMAC, VID (if provided), TTL and L3 header 
+checksum (for IPv4) and forwarding. 
+The device supports IPv4/IPv6 unicast and multicast routing. The system provides global options for 
+each type of packets to determine whether to route or discard those L3 packets. 
+Figure 4-1 Classic Forwarding Model of L2 Bridging and L3 Routing 
+VLAN X
+ (L2 Bridging)
+ HOST 1
+ (MAC A)
+ HOST 2
+ (MAC B)
+ L3 Interface 
+L3
+ Interface
+ (MAC E)
+ VRF N
+ (L3 Routing)
+ VLAN Y
+ (L2 Bridging)
+ 
+ (MAC F)
+ HOST 3
+ (MAC C)
+ HOST 4
+ (MAC D)
+
+
+
+4.1.2 L3 Interface
+An L3 interface is conceptually where packets enter and leave a network (VLAN). It’s used to route 
+packets between VLANs, so it is also called VLAN interface. 
+Normally, L3 routing is receiving a packet from an L3 interface and transmitting the packet to another 
+L3 interface. 
+
+4.1.2.1 Overview
+The device supports 1024 L3 interfaces and up to 16 different MTU values used by all L3 interfaces.
+
+4.1.2.2 Attribute 
+There are bunch of attributes belong to an interface, the details are described as below.
+(Physically, these attributes are stored into L3_IGR_INTF and L3_EGR_INTF separately.)
+
+
+
+
+
+
+3.3 Trafic Isolation.
+
+3.3.1
+Traffic Isolation Overview 
+Traffic isolation separates all the traffic (unicast, multicast, and broadcast) in layer 2 to provide traffic 
+interference and bandwidth utilization. The system provides two type isolation modules, Port-based 
+Isolation and VLAN-based Isolation. The details are as below.
+
+
+
+3.3.2
+Port-based Isolation 
+When hosts are connected to router through switch ports, they can utilize Port Isolation to force the 
+communication between hosts through the router. Port isolation is a mechanism to provide a CPU 
+configurable destination port mask for an ingress port. For each ingress port, the device provides a 
+port isolation port mask configuration defined in Figure 3-3. Bit value 1 of the port mask means the 
+port can communicate with each other. Bit value 0 is that the port can’t forward any packet. No matter 
+the received packets are known/unknown Unicast, known/unknown Multicast, Broadcast packets. All 
+of the packets are limited by the configuration of Port Isolation port mask in forwarding. 
+Table 3-54 PORT_ISO_CTRL Register 
+Bits Field Description 
+63:7 P_ISO_MBR_0 Port isolation configuration that each port can specify a port list to communicate with. 
+For example as Figure 3-3, hosts A and B are connected to ports 0 and 3 separately while router is 
+connected to port 7. The traffic between A and B must be forwarded by router. Therefore, user can 
+configure the 7th bit of Port Isolation port mask of ports 0 and 3 to be 1 while other bits should be 
+configured to 0, and Port Isolation port mask of port 7 still remains all ports. Then, direct 
+communication between downlink ports, 0 and 3, is forbidden and only traffic between uplink port 
+and downlink port can be forwarded. 
+The device provides a control setting RESTRICT_ROUTE, which indicates whether the routed packet is 
+restricted by Port-based port isolation. 
+
+Table 3-55 PORT_ISO_RESTRICT_ROUTE_CTRL Register 
+Bits, Field, Description,
+0:0, RESTRICT_ROUTE, Indicates whether the routed packet is restricted by Port-based port isolation. 0b0: not restricted 0b0: restricted
+
+
+3.3.3
+VLAN-based Isolation 
+Sometimes, uplink ports communicate with uplink port and downlink ports, but downlink ports don’t 
+be allowed to communicate with each other in VLAN domain. Customer can use VLAN-based Isolation 
+to achieve the application. The device provides 32 sets VLAN-based Isolation configurations in Table 
+
+3-56.  Table 3-56 PORT_ISO_VB_ISO_PMSK_CTRL Register 
+Bits,Field, Description, 
+88:32, VB_ISO_MBR, VLAN-based isolated port mask (port 56 to 0). Ports which have corresponding port mask clear(i.e. 0) in this mask could not communicate with each other, while ports which have corresponding port mask set could communicate with any other ports. 
+24:13, VID_UPPER, Upper bound VLAN ID,
+12:1, VID_LOWER, Upper bound VLAN ID,
+0:0, VALID, Indicates whether this entry is valid 0: entry invalid; 1: entry valid. 
+
+For every packet, system will check all the 32 sets if matched or not. The matched condition is: the 
+VALID field is valid and forwarding VID in the range [VID_UPPER, VID_LOWER]. If matched (multiple hit, 
+select the lowest index set), the field VB_ISO_MBR will be referred.  
+The ports with bit value 0 in VB_ISO_MBR can’t communicate with other ports having same bit value 0. 
+However, they can communicate with the other port with bit value 1. If bit value of ports is set to 1, 
+the port can communicate to all ports in the VLAN. Sometimes, bit value of uplink port is set to 1 and 
+bit value of downlink port is set to 0 in network environment. For example as Figure 3-4, ports 0 and 1 
+are uplink ports and other ports are downlink ports. Only configure (VB_ISO_MBR) of VLAN-based 
+Isolation entry to be (0x3), then uplink ports can communicate to all ports, but downlink ports only 
+communicate to uplink port.
+Unlike the port-based isolation, the VLAN based isolation always has no effect on the routing packet, 
+including unicast routing and multicast routing packet. But both the unicast and multicast bridged 
+packet are still restricted.

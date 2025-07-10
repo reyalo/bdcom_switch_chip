@@ -1,0 +1,136 @@
+PORT_ISO_VB_ISO_PMSK_CTRL Register
+Bits Field Value
+88:32 VB_ISO_MBR 0x000 0000 0000 0430(ports 4, 5, 10 bits = 1, all other 0)
+24:13 VID_UPPER 0x064 ( 100 in decimal)
+12 : 1 VID_LOWER 0x064(100 in decimal)
+0:0 VALID 0b1
+
+Host A can send -> (Host C, Host D, Router Interface VLAN 100)
+Host B can send -> (Host C, Host D, Router Interface VLAN 100)
+
+Host C can send -> All
+Host D can send -> All
+Router Interface VLAN 100 can send -> All
+
+
+Packet: Host A (192.168.1.2 Port 2) → Host B (192.168.1.3 Port 3)
+Packet Type: L3 Routed IPv4 packet
+
+Step-by-Step Flow
+step0: Host A lookup its ARP table For Device B(192.168.1.3)
+Arp not Found
+
+Step 1: Host A sends ARP request to Gateway
+Host A wants to talk to Host B
+
+Its default gateway is 192.168.1.1 (Router on Port 10)
+
+So it sends ARP request → Router replies
+
+VLAN-based isolation does NOT block ARP to port 10 (bit=1)
+
+ARP exchange succeeds
+
+
+
+Step 2: Host A sends IP Packet
+Host A sends L3 IP packet to Router
+
+Host A find MAC of Host B(192.168.1.1) from its ARP table.
+
+Frame:
+SMAC: Host A
+DMAC: Router Interface MAC
+EtherType: 0x0800 
+VLAN Tag: VLAN 100
+
+switch checks forwarding from Port 2 → Port 10
+
+Forwarded successfully
+
+Step 3: Router Processes and Forwards
+Router sees:
+Router find Next-hop MAC for Host B(192.168.1.3)
+Sends out new Ethernet frame on Port 3
+
+New Frame:
+
+SMAC: Router Interface MAC for VLAN 100
+DMAC: Host B MAC
+VLAN Tag: 100
+
+switch(VLAN 100) checks forwarding from Port 10 → Port 3
+Its Valid
+Routed packet to Port 3
+
+
+##############################################################################
+Packet: Host A (192.168.1.2 Port 2) → Host B (192.168.1.3 Port 3)
+
+Step 1: Host A sends ARP request for the Gateway
+
+Host A wants to send to 192.168.1.3
+But it's outside its ARP cache
+Host A’s default gateway is 192.168.1.1 (Router on Port 10)
+
+So it sends ARP Request: “MAC for 192.168.1.1?”
+
+VLAN-based Isolation Behavior:
+
+Port 2 bit = 0
+Port 10 bit = 1
+
+So 0 → 1 = allowed
+
+Result:
+ARP Request reaches the router on Port 10
+Router responds with its MAC
+
+Host A saves:
+192.168.1.1 → MAC_Router
+ARP exchange succeeds
+
+Step 2: Host A sends L3 IP Packet to Host B via Router
+Now Host A builds an L3 packet:
+
+Ethernet Frame:
+Field	Value
+SMAC	Host A's MAC
+DMAC	MAC of Router
+EthType	0x0800 (IPv4)
+VLAN Tag	VLAN 100
+Payload	IP packet to 192.168.1.3
+
+Packet goes from Port 2 → Port 10
+
+VLAN-based isolation:
+
+Port 2 bit = 0
+Port 10 bit = 1
+
+0 → 1 is allowed
+Switch forwards to Port 10
+
+Step 3: Router receives and processes the packet
+Router does:
+
+IP Lookup: 192.168.1.3
+Resolves ARP: 192.168.1.3 → MAC_B
+Creates new Ethernet frame for Layer 2
+
+New Ethernet Frame (for egress to Port 3):
+Field	Value
+SMAC	Router MAC (VLAN 100 interface)
+DMAC	MAC of Host B
+VLAN Tag	VLAN 100
+Payload	IP packet to 192.168.1.3
+
+This goes from Router (Port 10) → Host B (Port 3)
+
+VLAN-based isolation:
+Port 10 bit = 1
+Port 3 bit = 0
+
+1 → 0 is allowed
+
+Switch forwards to Port 3
